@@ -1,0 +1,354 @@
+#include "simJoin.h"
+#include <map>
+#include <cmath>
+#include <set>
+
+void Partition::toString()
+{
+  for (map<string, vector<int>>::iterator it = segments.begin(); it != segments.end(); it++)
+  {
+    cout << "  \t" << it->first // string (key)
+         << "==> ";
+    vector<int> arr = it->second;
+    for (int x = 0; x < arr.size(); x++)
+    {
+      cout << arr[x] << " ";
+    }
+    cout << endl;
+  }
+}
+
+int simJoin::getDataNum() const
+{
+  return data.size();
+}
+
+bool simJoin::getString(int id, string &out) const
+{
+  if (id < 0 || id >= data.size())
+    return false;
+  out = data[id];
+  return true;
+}
+
+bool simJoin::readData(const string &filename)
+{
+  string str;
+  ifstream datafile(filename, ios::in);
+  while (getline(datafile, str))
+    data.emplace_back(str);
+
+  return true;
+}
+
+/*
+ * It should do a similarity join operation betweent the set of strings from a data file
+ * such that the edit distance between two string is not larger than the given threshold. The
+ * format of result is a triple of numbers which respectively stand for the two IDs of the pair of strings
+ * from the data file and the edit distance between the two strings. All results are stored in a vector, sorted based on the IDs of the string from
+ * the first file and then the IDs of the string from the second file in an ascending order. Return
+ * an error if the similarity join operation is failed.
+ */
+
+void addPartition(int partNum, vector<Partition> &partitions, string segment, int id)
+{
+  if (partitions[partNum].segments.count(segment) == 1)
+  {
+    partitions[partNum].segments[segment].push_back(id);
+  }
+  else
+  {
+    vector<int> arr;
+    arr.push_back(id);
+    partitions[partNum].segments[segment] = arr;
+  }
+}
+
+/// Select substrings
+vector<string> substringSelection(string s, Partition &inverted_index, int partitionNum, unsigned threshold, int length, int position)
+{
+  int i = partitionNum + 1;
+  int delta = (int)abs((double)length - s.length());
+  int lower = max(position - (i - 1), position + delta - ((int)threshold + 1 - i));
+  int upper = min(position + (i - 1), position + delta + ((int)threshold + 1 - i));
+  // cout << "With i = " << i << " , delta = " << delta << " P_i = " << position << ". The range is [" << lower << ", " << upper << "]." << endl;
+  vector<string> substrings;
+  int sub_length = (inverted_index.segments.begin()->first).length();
+  for (int y = lower - 1; y < upper; y++)
+  {
+    substrings.push_back(s.substr(y, sub_length));
+  }
+  // for (int r = 0; r < substrings.size(); r++)
+  // {
+  //   cout << substrings[r] << '\t';
+  // }
+  // cout << endl;
+  return substrings;
+}
+
+vector<int> getPositions(vector<Partition> &partitions)
+{
+  vector<int> positions;
+  int sum = 1;
+  for (int x = 0; x < partitions.size(); x++)
+  {
+    string val = partitions[x].segments.begin()->first;
+    positions.push_back(sum);
+    sum = sum + val.length();
+  }
+  return positions;
+}
+
+void partitionString(string r, unsigned threshold, vector<Partition> &partitions, int id)
+{
+  double length = r.length() / (double)(threshold + 1);
+  // cout << length << endl;
+  int minLen = floor(length); // minimum length of seg
+  int maxLen = ceil(length);  // maximum length of seg
+  int maxNum = r.length() - minLen * (threshold + 1);
+  // cout << "The floor is " << minLen << ". The ceiling is " << maxLen << ". The number of celing length is " << maxNum << endl;
+  if (partitions.empty())
+  {
+    for (int x = 0; x < threshold + 1; x++)
+    {
+      partitions.push_back(Partition());
+    }
+  }
+  int num = 0;
+  for (int x = 0; x < (threshold + 1 - maxNum) * minLen; x += minLen)
+  {
+    // cout << r.substr(x, minLen) << endl;
+    addPartition(num, partitions, r.substr(x, minLen), id);
+    num++;
+  }
+  for (int y = (threshold + 1 - maxNum) * minLen; y < r.length(); y += maxLen)
+  {
+    addPartition(num, partitions, r.substr(y, maxLen), id);
+    // cout << r.substr(y, maxLen) << "\t";
+    num++;
+  }
+  // cout << endl;
+}
+
+void purge_old_indexes(map<int, vector<Partition>> &invert_indexes, int current, unsigned threshold)
+{
+  for (int x = current - threshold - 1; x >= 0; x--)
+  {
+    if (invert_indexes.count(x) == 1)
+    {
+      invert_indexes.erase(x);
+    }
+  }
+}
+
+bool check_in_partition(string s, Partition partition)
+{
+  for (map<string, vector<int>>::iterator it = partition.segments.begin(); it != partition.segments.end(); it++)
+  {
+    if (it->first == s)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+void logTimeMessage1(timeval &t1, timeval &t2, string message)
+{
+  cout << message << t2.tv_sec - t1.tv_sec + (t2.tv_usec - t1.tv_usec) / 1e6 << endl;
+}
+
+unsigned editDistance(string s, string r, unsigned threshold)
+{
+  int dp[r.length() + 1][s.length() + 1];
+  for (int i = 0; i <= r.length(); i++)
+  {
+    for (int j = 0; j <= s.length(); j++)
+    {
+      if (i == 0)
+        dp[i][j] = j;
+      else if (j == 0)
+        dp[i][j] = i;
+      else if (r[i - 1] == s[j - 1])
+        dp[i][j] = dp[i - 1][j - 1];
+      else
+      {
+        dp[i][j] = 1 + min({dp[i][j - 1], dp[i - 1][j], dp[i - 1][j - 1]});
+      }
+    }
+  }
+  // std::cout << "  - ";
+  // for (int i = 0; i <= s.length(); ++i)
+  // {
+  //   std::cout << s[i] << ' ';
+  // }
+  // cout << endl;
+  // for (int i = 0; i <= r.length(); ++i)
+  // {
+  //   if (i == 0)
+  //     std::cout << '-';
+  //   std::cout << r[i - 1] << ' ';
+  //   for (int j = 0; j <= s.length(); ++j)
+  //   {
+  //     std::cout << dp[i][j] << ' ';
+  //   }
+  //   std::cout << std::endl;
+  // }
+  return dp[r.length()][s.length()];
+}
+
+bool checkRange(int delta, unsigned threshold, int i, int j)
+{
+  return (j >= i - floor(0.5 * (threshold - delta)) && j <= i + floor(0.5 * (threshold + delta)));
+}
+
+unsigned verifyStringPair(string s, string r, unsigned threshold)
+{
+
+  int delta = (int)abs((double)s.length() - r.length());
+  int dp[r.length() + 1][s.length() + 1];
+  for (int i = 0; i <= r.length(); ++i)
+  {
+    for (int j = 0; j <= s.length(); ++j)
+      dp[i][j] = 0;
+  }
+  for (int i = 0; i <= r.length(); i++)
+  {
+    int jMin = i - floor(0.5 * (threshold - delta));
+    int jMax = i + floor(0.5 * (threshold + delta));
+    if (jMin < 0)
+      jMin = 0;
+    if (jMax > s.length())
+      jMax = s.length();
+    // cout << "Range:" << jMin << " " << jMax << endl;
+    for (int j = jMin; j <= jMax; j++)
+    {
+      if (i == 0)
+        dp[i][j] = j;
+      else if (j == 0)
+        dp[i][j] = i;
+      else if (r[i - 1] == s[j - 1])
+        dp[i][j] = dp[i - 1][j - 1];
+      else
+      {
+        vector<int> pos;
+        if (checkRange(delta, threshold, i, j - 1))
+          pos.push_back(dp[i][j - 1]);
+        if (checkRange(delta, threshold, i - 1, j))
+          pos.push_back(dp[i - 1][j]);
+        if (checkRange(delta, threshold, i - 1, j - 1))
+          pos.push_back(dp[i - 1][j - 1]);
+        dp[i][j] = 1 + *min_element(pos.begin(), pos.end());
+      }
+    }
+  }
+  // std::cout << "  - ";
+  // for (int i = 0; i <= s.length(); ++i)
+  // {
+  //   std::cout << s[i] << ' ';
+  // }
+  // cout << endl;
+  // for (int i = 0; i <= r.length(); ++i)
+  // {
+  //   if (i == 0)
+  //     std::cout << '-';
+  //   std::cout << r[i - 1] << ' ';
+  //   for (int j = 0; j <= s.length(); ++j)
+  //   {
+  //     std::cout << dp[i][j] << ' ';
+  //   }
+  //   std::cout << std::endl;
+  // }
+
+  return dp[r.length()][s.length()];
+}
+
+void simJoin::verification(vector<triple<unsigned, unsigned, unsigned>> &results, vector<int> candidates, unsigned threshold, string s, int id)
+{
+  for (int x = 0; x < candidates.size(); x++)
+  {
+    // cout << "Verify " << s << " and " << data[candidates[x]] << endl;
+    int distance1 = editDistance(s, data[candidates[x]], threshold);
+    int distance = verifyStringPair(s, data[candidates[x]], threshold);
+    if (distance < distance1)
+    {
+      cout << s << " " << data[candidates[x]] << "Verify: " << distance << "Edit: " << distance1 << endl;
+      exit(1);
+    }
+    if (distance <= threshold)
+    {
+      triple<unsigned, unsigned, unsigned> t;
+      t.id1 = (unsigned)id;
+      t.id2 = (unsigned)candidates[x];
+      t.ed = (unsigned)distance;
+      results.push_back(t);
+      // cout << s << " and " << data[candidates[x]] << "is a PAIR!" << endl;
+    }
+  }
+}
+
+bool simJoin::SimilarityJoin(unsigned threshold, vector<triple<unsigned, unsigned, unsigned>> &results)
+{
+
+  // timeval t1, t2, t3;
+  // gettimeofday(&t1, NULL);
+  // cout << editDistance("daifeng_wang", "daiheng_ni", threshold) << endl;
+  // gettimeofday(&t2, NULL);
+  // cout << verifyStringPair("daifeng_wang", "daiheng_ni", threshold) << endl;
+  // gettimeofday(&t3, NULL);
+  // logTimeMessage1(t1, t2, "Edit Distance");
+  // logTimeMessage1(t2, t3, "Verify String Pair");
+
+  map<int, vector<Partition>> invert_indexes;
+  for (int i = 0; i < data.size(); i++)
+  {
+    string val = data[i];
+    purge_old_indexes(invert_indexes, val.length(), threshold);
+    set<int> candidates;
+    for (map<int, vector<Partition>>::iterator it = invert_indexes.begin(); it != invert_indexes.end(); it++)
+    { // iterate through lengths
+      int length = it->first;
+      vector<Partition> partitions = it->second;
+      vector<int> positions = getPositions(partitions);
+      for (int p = 0; p < partitions.size(); p++)
+      { // iterate through segs of each length
+        vector<string> substrings = substringSelection(val, partitions[p], p, threshold, length, positions[p]);
+        for (int y = 0; y < substrings.size(); y++)
+        {
+          // check if it is in Li and then verify
+          if (check_in_partition(substrings[y], partitions[p]))
+          {
+            vector<int> c = partitions[p].segments[substrings[y]];
+            for (int j = 0; j < c.size(); j++)
+            {
+              candidates.insert(c[j]);
+            }
+            // verification(results, partitions[p].segments[substrings[y]], threshold, val, i);
+          }
+        }
+      }
+    }
+    vector<int> c(candidates.begin(), candidates.end());
+    verification(results, c, threshold, val, i);
+
+    if (invert_indexes.count(val.length()) != 1)
+    {
+      invert_indexes[val.length()] = vector<Partition>();
+    }
+    partitionString(val, threshold, invert_indexes[val.length()], i);
+
+    // Print invert_indexes
+    // for (map<int, vector<Partition> >::iterator it = invert_indexes.begin(); it != invert_indexes.end(); it++)
+    // {
+    //   cout << "Length " << it->first << endl;
+    //   vector<Partition> partitions = it->second;
+    //   for (int x = 0; x < partitions.size(); x++)
+    //   {
+    //     cout << x << ":";
+    //     partitions[x].toString();
+    //   }
+    // }
+    // cout << "==============" << endl;
+  }
+  return true;
+}

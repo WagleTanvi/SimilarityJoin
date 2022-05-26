@@ -1,0 +1,40 @@
+            int tau_left = (p + 1) - 1;
+            int tau_right = threshold + 1 - (p + 1);
+            for (int q = 0; q < filtered.size(); q++)
+            {
+              string r = data[filtered[q]];
+              string r_l = "";
+              string r_r = "";
+              if (positions[p] - 1 > 0)
+                r_l = r.substr(0, positions[p] - 1);
+              if (positions[p] - 1 + substrings[y].length() < r.length()) // check on this
+                r_r = r.substr(positions[p] - 1 + substrings[y].length(), r.length());
+
+              int index = val.find(substrings[y]); // first occurence might be problem
+              string s_l = "";
+              string s_r = "";
+              if (index > 0)
+                s_l = val.substr(0, index);
+              if (index + substrings[y].length() < val.length())
+                s_r = val.substr(index + substrings[y].length(), val.length());
+
+              int distance = verifyStringPair(s_l, r_l, tau_left);
+              // cout << "Left: " << distance << "Threshold: " << tau_left << endl;
+              if (distance <= tau_left)
+              {
+                distance = verifyStringPair(s_r, r_r, tau_right);
+                // cout << "Right: " << distance << endl;
+                if (distance <= tau_right)
+                {
+                  triple<unsigned, unsigned, unsigned> t;
+                  t.id1 = (unsigned)i;
+                  t.id2 = (unsigned)filtered[q];
+                  t.ed = (unsigned)distance;
+                  results.push_back(t);
+                  candidates.insert(filtered[q]);
+                }
+              }
+
+              // cout << "Comparing " << r << " with " << val << endl;
+              // cout << "r_l=" << r_l << " same=" << substrings[y] << " r_r=" << r_r << endl;
+              // cout << "s_l=" << s_l << " same=" << substrings[y] << " s_r=" << s_r << endl;

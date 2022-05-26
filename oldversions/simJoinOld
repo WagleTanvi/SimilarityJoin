@@ -1,0 +1,107 @@
+#include "simJoin.h"
+#include <map>
+#include <cmath>
+
+int simJoin::getDataNum() const
+{
+    return data.size();
+}
+
+bool simJoin::getString(int id, string &out) const
+{
+    if (id < 0 || id >= data.size())
+        return false;
+    out = data[id];
+    return true;
+}
+
+bool simJoin::readData(const string &filename)
+{
+    string str;
+    ifstream datafile(filename, ios::in);
+    while (getline(datafile, str))
+        data.emplace_back(str);
+
+    return true;
+}
+
+/*
+ * It should do a similarity join operation betweent the set of strings from a data file
+ * such that the edit distance between two string is not larger than the given threshold. The
+ * format of result is a triple of numbers which respectively stand for the two IDs of the pair of strings
+ * from the data file and the edit distance between the two strings. All results are stored in a vector, sorted based on the IDs of the string from
+ * the first file and then the IDs of the string from the second file in an ascending order. Return
+ * an error if the similarity join operation is failed.
+ */
+void printMap(map<int, vector<string>> groups)
+{
+    for (map<int, vector<string>>::iterator it = groups.begin(); it != groups.end(); it++)
+    {
+        cout << it->first // string (key)
+             << ':';
+        vector<string> arr = it->second;
+        for (int x = 0; x < arr.size(); x++)
+        {
+            cout << arr[x] << " ";
+        }
+        cout << endl;
+    }
+}
+
+struct partition
+{
+    int segment_num;
+    map<string, vector<int>> segments;
+};
+
+void partitionString(string r, unsigned threshold)
+{
+    double length = r.length() / (double)(threshold + 1);
+    // cout << length << endl;
+    int minLen = floor(length);
+    int maxLen = ceil(length);
+    int maxNum = r.length() - minLen * (threshold + 1);
+    // cout << "The floor is " << minLen << ". The ceiling is " << maxLen << ". The number of celing length is " << maxNum << endl;
+    for (int x = 0; x < (threshold + 1 - maxNum) * minLen; x += minLen)
+    {
+        cout << r.substr(x, minLen) << "\t";
+    }
+    for (int y = (threshold + 1 - maxNum) * minLen; y < r.length(); y += maxLen)
+    {
+        cout << r.substr(y, maxLen) << "\t";
+    }
+    cout << endl;
+}
+
+bool simJoin::SimilarityJoin(unsigned threshold, vector<triple<unsigned, unsigned, unsigned>> &results)
+{
+    // // Split into groups
+    // map<int, vector<string> > groups;
+    // for (int i = 0; i < data.size(); i++)
+    // {
+    //   int length = data[i].length();
+    //   if (groups.count(length) == 1)
+    //   {
+    //     groups[length].push_back(data[i]);
+    //   }
+    //   else
+    //   {
+    //     vector<string> arr;
+    //     arr.push_back(data[i]);
+    //     groups[length] = arr;
+    //   }
+    // }
+
+    // vector<invert_index> indexes;
+
+    for (int i = 0; i < data.size(); i++)
+    {
+        partitionString(data[i], 3);
+    }
+    // printMap(groups);
+    return true;
+}
+
+caushik_chakrabar
+    vankatesh
+        avataresha
